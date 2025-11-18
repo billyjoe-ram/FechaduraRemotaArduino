@@ -1,134 +1,260 @@
-from machine import Pin, I2C
-from time import sleep, time, ticks_ms, ticks_diff
-from i2c_lcd import I2cLcd
+#include <WiFi.h>
+#include <WebServer.h>
+#include <Wire.h>
+#include <LiquidCrystal_I2C.h>
 
-AddressOfLcd = 0x27
-i2c = I2C(scl=Pin(22), sda=Pin(21), freq=400000)
-lcd = I2cLcd(i2c, AddressOfLcd, 2, 16)
+// ===== CONFIG WIFI =====
+const char* ssid = "ESP32_Hotspot";
+const char* password = "1234abcd";
 
-led_verde = Pin(4, Pin.OUT)
-led_vermelho = Pin(2, Pin.OUT)
+// Configuração: Endereço I2C, Colunas, Linhas
+LiquidCrystal_I2C lcd(0x27, 16, 2);
 
-senha_padrao = "1234"
-tentativas_erradas = 0
-bloqueado_ate = 0
-aberto = 0
+// ===== SERVIDOR WEB =====
+WebServer server(80);
 
-step_pin = Pin(5, Pin.OUT)
-dir_pin = Pin(17, Pin.OUT)
+// ===== PINOS =====
+int led_verde = 4;
+int led_vermelho = 2;
+int step_pin = 5;
+int dir_pin = 17;
 
-def escreve_lcd(valor):
-    delay = 0.3
-    max_chars = 32
+// ===== VARIÁVEIS DO SISTEMA =====
+String senha_padrao = "1234";
+int tentativas_erradas = 0;
+unsigned long bloqueado_ate = 0;
+int aberto = 0;
 
-    lcd.move_to(0, 0)
-    lcd.putstr(" " * max_chars)
 
-    if len(valor) <= max_chars:
-        lcd.move_to(0,0)
-        lcd.putstr(valor)
+void escreve_lcd(String valor) {
+  float delay_scroll = 0.3;
+  int max_chars = 32;
 
-        sleep(4)
-    else:
-        for i in range(len(valor) - max_chars + 1):
-            janela = valor[i : i + max_chars]
-            lcd.move_to(0, 0)
-            lcd.putstr(janela)
-            sleep(delay)
+  lcd.clear();
+  lcd.setCursor(0, 0);  
+
+  if (valor.length() <= max_chars) {
+      lcd.setCursor(0, 0);
+      lcd.print(valor);
+      delay(4000);
+  } else {
+      for (int i = 0; i <= valor.length() - max_chars; i++) {
+        String janela = valor.substring(i, i + max_chars);
+        lcd.setCursor(0, 0);
+        lcd.print(janela);
+        delay(delay_scroll * 1000);
+      }
+  }  
+}
+
+void step_motor(float d = 0.001) {
+  digitalWrite(step_pin, HIGH);
+  delayMicroseconds(d * 1000000);
+  digitalWrite(step_pin, LOW);
+  delayMicroseconds(d * 1000000);
+}
+
+void abrir(int duracao = 2) {
+  escreve_lcd("Abrindo porta");
+  digitalWrite(dir_pin, LOW);
+  unsigned long inicio = millis();
+  while (millis() - inicio < duracao * 1000) {
+    step_motor();
+  }
+}
+
+void fechar(int duracao = 2) {
+  escreve_lcd("Fechando porta");
+  digitalWrite(dir_pin, HIGH);
+  unsigned long inicio = millis();
+  while (millis() - inicio < duracao * 1000) {
+    step_motor();
+  }
+}
+
+void acender_led_verde() {
+  digitalWrite(led_verde, HIGH);
+  delay(1000);
+  digitalWrite(led_verde, LOW);
+}
+
+void acender_led_vermelho() {
+  digitalWrite(led_vermelho, HIGH);
+  delay(1000);
+  digitalWrite(led_vermelho, LOW);
+}
+
+void processar_movimento_motor() {
+  if (aberto == 0) {
+    escreve_lcd("Senha correta! Abrindo fechadura...");
+    acender_led_verde();
+    abrir();
+    aberto = 1;
+  } else {
+    acender_led_vermelho();
+    fechar();
+    aberto = 0;
+  }
+}
+
+void redefinir_senha() {
+  escreve_lcd("Modo de redefinicao de senha ativado.");
+  escreve_lcd("Digite a nova senha de 4 dígitos: ");
     
-    lcd.move_to(0, 0)
-    lcd.putstr(" " * max_chars)
+  //while (Serial.available() == 0) {}
+  //String nova = Serial.readStringUntil('\n');
+  nova.trim();
 
-def step(delay=0.001):
-    step_pin.value(1)
-    sleep(delay)
-    step_pin.value(0)
-    sleep(delay)
+  if (nova.length() == 4 && nova.toInt() >= 0) {
+    senha_padrao = nova;
+    acender_led_verde();
+    escreve_lcd("Senha redefinida com sucesso!");
+  } else {
+    escreve_lcd("Senha invalida, redefinicao cancelada.");
+  }
+}
 
-def abrir(duracao=2):    
-    escreve_lcd("Abrindo porta")
-    dir_pin.value(0)
-    inicio = ticks_ms()
-    while ticks_diff(ticks_ms(), inicio) < duracao * 1000:
-        step()
+void processar_senha(String senha_digitada) {
+    unsigned long agora = millis() / 1000;
 
-def fechar(duracao=2):
-    escreve_lcd("Fechando porta")  
-    dir_pin.value(1)
-    inicio = ticks_ms()
-    while ticks_diff(ticks_ms(), inicio) < duracao * 1000:
-        step()
+    if (agora < bloqueado_ate) {
+      escreve_lcd("Sistema bloqueado. Aguarde 5 minutos.");
+      return;
+    }
 
-def acender_led_verde():
-    led_verde.on()
-    sleep(1)
-    led_verde.off()
+    if (senha_digitada == "0") {
+      escreve_lcd("Digite a senha atual para redefinir: ");
 
-def acender_led_vermelho():
-    led_vermelho.on()
-    sleep(1)
-    led_vermelho.off()
+      //while (Serial.available() == 0) {}
+      //String senha_teste = Serial.readStringUntil('\n');
+      senha_teste.trim();
 
-def processar_movimento_motor():
-    global aberto
+      if (senha_teste == senha_padrao) {
+        redefinir_senha();
+        return;
+      } else {
+        escreve_lcd("Senha incorreta. Redefinição cancelada.");
+        return;
+      }
+    }
+
+    if (senha_digitada == senha_padrao) {
+      processar_movimento_motor();
+      tentativas_erradas = 0;
+    } else {
+      tentativas_erradas++;
+      acender_led_vermelho();
+
+      escreve_lcd("Senha incorreta! Tentativa: " + String(tentativas_erradas));
+
+      if (tentativas_erradas >= 3) {
+        bloqueado_ate = agora + 300;
+        escreve_lcd("Muitas tentativas erradas. Sistema bloqueado por 5 minutos.");
+      }
+    }
+}
+
+void setup() {
+  Serial.begin(115200);
+
+  // LCD
+  lcd.init();
+  lcd.backlight();
+  lcd.setCursor(0, 0);
+  lcd.print("Inicializando...");
+
+  // PINOS
+  pinMode(led_verde, OUTPUT);
+  pinMode(led_vermelho, OUTPUT);
+  pinMode(step_pin, OUTPUT);
+  pinMode(dir_pin, OUTPUT);
+
+  // WIFI modo AP
+  WiFi.softAP(ssid, password);
+  IPAddress IP = WiFi.softAPIP();
+  Serial.print("AP IP address: ");
+  Serial.println(IP);
+  lcd.clear();
+  lcd.print("Hotspot Ativo");
+
+  // SERVIDOR
+  server.on("/", handleRoot);
+  server.on("/action", handleAction);
+  server.begin();
+
+  delay(1000);
+  lcd.clear();
     
-    if aberto == 0:
-        escreve_lcd("Senha correta! Abrindo fechadura...")
-        acender_led_verde()
-        abrir()
-        aberto = 1
-    else:
-        acender_led_vermelho()
-        fechar()
-        aberto = 0
+  lcd.begin(16, 2);
+  lcd.init();
+  lcd.backlight();
 
-def redefinir_senha():
-    global senha_padrao
-    escreve_lcd("Modo de redefinicao de senha ativado.")
-    escreve_lcd("Digite a nova senha de 4 dígitos: ")
-    nova = input()
-    if len(nova) == 4 and nova.isdigit():
-        senha_padrao = nova
-        acender_led_verde()
-        escreve_lcd("Senha redefinida com sucesso!")
-    else:
-        escreve_lcd("Senha invalida, redefinicao cancelada.")
+  escreve_lcd("Fechadura inteligente iniciada.");
+  escreve_lcd("Senha padrao inicial: 1234 (modo de redefinicao).");
+}
 
-def processar_senha(senha_digitada):
-    global senha_padrao, tentativas_erradas, bloqueado_ate
+void loop() {
+  server.handleClient();
+}
 
-    if time() < bloqueado_ate:
-        escreve_lcd("Sistema bloqueado. Aguarde 5 minutos.")
-        return
+// ===== PÁGINA PRINCIPAL =====
+void handleRoot() {
+    String estado = aberto ? "Aberta" : "Fechada";
+    String html = "<!DOCTYPE html><html><head><meta charset='UTF-8'>";
+    html += "<title>Fechadura Inteligente</title>";
+    html += "<style>";
+    html += "body{font-family:Arial;text-align:center;margin-top:50px;}";
+    html += "button{font-size:20px;padding:15px 30px;margin:10px;}";
+    html += ".status{font-size:22px;margin:20px;}";
+    html += "</style></head><body>";
+    html += "<h1>Fechadura Inteligente</h1>";
+    html += "<div class='status'>Porta: " + estado + "</div>";
+    html += "<form action='/action' method='get'>";
+    html += "<input type='hidden' name='senha' value='" + senha_padrao + "'>";
+    html += "<button name='acao' value='abrir'>Abrir</button>";
+    html += "<button name='acao' value='fechar'>Fechar</button>";
+    html += "</form></body></html>";
 
-    if senha_digitada == "0":
-        escreve_lcd("Digite a senha atual para redefinir: ")
-        senha_teste = input()
+    server.send(200, "text/html", html);
+}
 
-        if senha_teste == senha_padrao:
-            redefinir_senha()
-            return
-        else:
-            escreve_lcd("Senha incorreta. Redefinição cancelada.")
-            return
+// ===== VERIFICA SENHA E EXECUTA AÇÃO =====
+void handleAction() {
+    String senha_digitada = server.arg("senha");
+    String acao = server.arg("acao");
 
-    if senha_digitada == senha_padrao:
-        processar_movimento_motor()
-        tentativas_erradas = 0
-    else:
-        tentativas_erradas += 1
-        acender_led_vermelho()
-        escreve_lcd("Senha incorreta! Tentativa: " + tentativas_erradas)
+    // Bloqueio por tentativas
+    if (millis() < bloqueado_ate) {
+        escreve_lcd("Sistema bloqueado. Aguarde 5 minutos.");
+        return;
+    }
 
-        if tentativas_erradas >= 3:
-            bloqueado_ate = time() + 300
-            escreve_lcd("Muitas tentativas erradas. Sistema bloqueado por 5 minutos.")
+    // SENHA CORRETA
+    if (senha_digitada == senha_padrao) {
+        digitalWrite(ledVerdePin, HIGH);
+        delay(300);
+        digitalWrite(ledVerdePin, LOW);
 
-escreve_lcd("Fechadura inteligente iniciada.")
-escreve_lcd("Senha padrao inicial: 1234 (modo de redefinicao).")
+        if (acao == "abrir" && !aberto)
+            abrir();
+        else if (acao == "fechar" && aberto)
+            fechar();
 
-while True:
-    escreve_lcd("Para modo de redefinicao digite '0'")
-    escreve_lcd("Digite a senha de 4 digitos: ")
-    senha_digitada = input()
-    processar_senha(senha_digitada)
+        tentativas_erradas = 0;
+        handleRoot();
+        return;
+    }
+
+    // SENHA ERRADA
+    tentativas_erradas++;
+    digitalWrite(ledVermelhoPin, HIGH);
+    delay(300);
+    digitalWrite(ledVermelhoPin, LOW);
+
+    if (tentativas_erradas >= 3) {
+        bloqueado_ate = millis() + 300000;
+        escreve_lcd("Muitas tentativas. Sistema bloqueado por 5 minutos.");
+    } else {
+        escreve_lcd("Senha incorreta! Tentativa " + String(tentativas_erradas));
+    }
+}
