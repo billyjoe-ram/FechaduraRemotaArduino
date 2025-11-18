@@ -12,7 +12,7 @@ A fechadura, funcionando como um receptor Wi-Fi, vai receber uma senha numérica
 * Placa ESP32
 * 1 Stepper Motor
 * 1 A4988 Stepper Motor Driver
-* 2 LED, 1 verde e um vermelho
+* 2 LEDs, 1 verde e um vermelho
 * 1 Protoboard
 * Cabos jumper
 * 1 Tela LCD
@@ -35,10 +35,15 @@ Para simulação, foi utilizado o Wokwi.
 
 <img width="746" height="459" alt="image" src="https://github.com/user-attachments/assets/683fa937-5b06-4069-a03c-34aa049da03c" />
 
-*Equipamento Funcionando*
+*Equipamento Ligado*
 
+<img width="941" height="423" alt="image" src="https://github.com/user-attachments/assets/8f44e704-76b6-4446-b652-a8eb3df28cd4" />
+
+*Fechadura em movimento de abertura*
+
+<img width="945" height="416" alt="image" src="https://github.com/user-attachments/assets/282f2e06-cb14-4366-9b8e-58b68674d23b" />
+
+*Fechadura em movimento de fechamento*
 
 ### Link do projeto:
-https://wokwi.com/projects/446642167249268737
-
-
+https://wokwi.com/projects/447910810061301761
